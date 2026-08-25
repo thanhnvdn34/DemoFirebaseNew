@@ -30,6 +30,13 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
+      - name: Compute versionCode from commit
+        run: |
+          SHORT_SHA=$(git rev-parse --short=6 HEAD)
+          # convert hex (6 chars) to decimal for versionCode
+          VERSION_CODE=$((0x$SHORT_SHA))
+          echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_ENV
+
       - name: Grant execute permission for gradlew
         working-directory: app
         run: chmod +x ./gradlew
@@ -42,6 +49,7 @@ jobs:
         working-directory: app
         run: |
           ./gradlew assembleDebug \
+            -PversionCode=$VERSION_CODE \
             -Pandroid.injected.signing.store.file=$(pwd)/../cer/certificate.jks \
             -Pandroid.injected.signing.store.password=$KS_PASS \
             -Pandroid.injected.signing.key.alias=$KS_ALIAS \
