@@ -5,16 +5,12 @@ plugins {
 
 android {
     namespace = "com.thanhnv.mydemoappapplication"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.thanhnv.mydemoappapplication"
         minSdk = 28
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 1
         versionName = "1.0"
 
