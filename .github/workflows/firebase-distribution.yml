@@ -60,4 +60,4 @@ jobs:
           serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           groups: ${{ inputs.tester_group }}
           file: ${{ env.APK_PATH }}
-          releaseNotes: "${{ inputs.release_notes }} - ${SHORT_SHA}"
+          releaseNotes: "${{ inputs.release_notes }} - ${{ env.SHORT_SHA }}"
