@@ -13,6 +13,7 @@ android {
         applicationId = "com.thanhnv.demofirebase"
         minSdk = 28
         targetSdk = 37
+        versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
