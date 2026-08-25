@@ -45,7 +45,7 @@ jobs:
           SHORT_SHA: ${{ env.SHORT_SHA }}
         working-directory: app
         run: |
-          ./gradlew assembleDebug -PversionNameSuffix=-${SHORT_SHA} \
+          ./gradlew assembleDebug -PbuildSha=${SHORT_SHA} \
             -Pandroid.injected.signing.store.file=$(pwd)/../cer/certificate.jks \
             -Pandroid.injected.signing.store.password=$KS_PASS \
             -Pandroid.injected.signing.key.alias=$KS_ALIAS \
@@ -60,4 +60,4 @@ jobs:
           serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           groups: ${{ inputs.tester_group }}
           file: ${{ env.APK_PATH }}
-          releaseNotes: "${{ inputs.release_notes }} - ${{ env.SHORT_SHA }}"
+          releaseNotes: "${{ inputs.release_notes }}"
