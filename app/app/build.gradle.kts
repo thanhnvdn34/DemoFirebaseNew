@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.thanhnv.mydemoappapplication"
+    namespace = "com.thanhnv.demofirebase"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.thanhnv.mydemoappapplication"
+        applicationId = "com.thanhnv.demofirebase"
         minSdk = 28
         targetSdk = 37
         versionCode = 1
@@ -19,7 +19,7 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix = ".debug"
+            // Keep debug applicationId same as default so Firebase App matches
         }
         release {
             optimization {
