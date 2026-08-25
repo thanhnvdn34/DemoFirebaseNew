@@ -11,7 +11,7 @@ on:
       tester_group:
         description: 'Firebase tester group'
         required: false
-        default: 'testers'
+        default: 'Group1'
         type: string
 
 jobs:
