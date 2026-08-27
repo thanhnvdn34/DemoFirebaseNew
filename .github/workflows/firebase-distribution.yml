@@ -30,8 +30,15 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: Compute SHORT_SHA
-        run: echo "SHORT_SHA=$(git rev-parse --short=6 HEAD)" >> $GITHUB_ENV
+      - name: Compute unique build tag from release notes
+        run: |
+          RAW_RELEASE_NOTE="${{ inputs.release_notes }}"
+          RELEASE_NOTE_TAG=$(echo "$RAW_RELEASE_NOTE" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g; s/-\+/-/g; s/^-\|-$//g; s/^-//; s/-$//' | cut -c1-30)
+          if [ -z "$RELEASE_NOTE_TAG" ]; then
+            RELEASE_NOTE_TAG="release"
+          fi
+          RELEASE_NOTE_TAG="${RELEASE_NOTE_TAG}-${{ github.run_number }}"
+          echo "RELEASE_NOTE_TAG=$RELEASE_NOTE_TAG" >> $GITHUB_ENV
 
       - name: Grant execute permission for gradlew
         working-directory: app
@@ -42,16 +49,16 @@ jobs:
           KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
           KS_ALIAS: ${{ secrets.KEY_ALIAS }}
           KS_KEY_PASS: ${{ secrets.KEY_PASSWORD }}
-          SHORT_SHA: ${{ env.SHORT_SHA }}
+          RELEASE_NOTE_TAG: ${{ env.RELEASE_NOTE_TAG }}
         working-directory: app
         run: |
-          ./gradlew assembleDebug -PbuildSha=${SHORT_SHA} \
+          ./gradlew assembleDebug -PbuildSha=${RELEASE_NOTE_TAG} \
             -Pandroid.injected.signing.store.file=$(pwd)/../cer/certificate.jks \
             -Pandroid.injected.signing.store.password=$KS_PASS \
             -Pandroid.injected.signing.key.alias=$KS_ALIAS \
             -Pandroid.injected.signing.key.password=$KS_KEY_PASS
-          mv app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/app-debug-${SHORT_SHA}.apk
-          echo "APK_PATH=app/app/build/outputs/apk/debug/app-debug-${SHORT_SHA}.apk" >> $GITHUB_ENV
+          mv app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/app-debug-${RELEASE_NOTE_TAG}.apk
+          echo "APK_PATH=app/app/build/outputs/apk/debug/app-debug-${RELEASE_NOTE_TAG}.apk" >> $GITHUB_ENV
 
       - name: Upload to Firebase App Distribution
         uses: wzieba/Firebase-Distribution-Github-Action@v1

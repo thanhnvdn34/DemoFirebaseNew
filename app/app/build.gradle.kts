@@ -8,12 +8,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        val computedVersionCode = project.findProperty("versionCode")?.toString()?.toIntOrNull() ?: 1
-        versionCode = computedVersionCode
         applicationId = "com.thanhnv.demofirebase"
-        // Build SHA injected by CI to make binary content unique without changing versionCode
-        val buildShaProp = project.findProperty("buildSha")?.toString() ?: "local"
-        buildConfigField("String", "BUILD_SHA", "\"$buildShaProp\"")
         minSdk = 28
         targetSdk = 37
         versionCode = 1
@@ -45,7 +40,6 @@ android {
     }
     buildFeatures {
         compose = true
-        buildConfig = true
     }
 }
 
