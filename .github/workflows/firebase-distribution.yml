@@ -8,9 +8,9 @@ on:
         required: false
         type: string
       tester_group:
-        description: 'Firebase tester group'
+        description: 'Firebase tester groups, separated by commas'
         required: false
-        default: 'Group1'
+        default: 'Group1,Group2,Group 3'
         type: string
 
 jobs:
