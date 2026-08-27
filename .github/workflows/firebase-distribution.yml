@@ -6,7 +6,6 @@ on:
       release_notes:
         description: 'Release notes'
         required: false
-        default: 'New debug build'
         type: string
       tester_group:
         description: 'Firebase tester group'
