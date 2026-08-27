@@ -55,6 +55,23 @@ jobs:
           mv app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/app-debug-${BUILD_TAG}.apk
           echo "APK_PATH=app/app/build/outputs/apk/debug/app-debug-${BUILD_TAG}.apk" >> $GITHUB_ENV
 
+      - name: Prepare Firebase release notes
+        env:
+          RELEASE_NOTE_INPUT: ${{ inputs.release_notes }}
+          TRIGGER_USER: ${{ github.actor }}
+        run: |
+          export TZ=Asia/Ho_Chi_Minh
+          VERSION_NAME=$(grep -E 'versionName *= *"' app/app/build.gradle.kts | head -n 1 | sed -E 's/.*versionName *= *"([^"]+)".*/\1/')
+          VERSION_CODE=$(grep -E 'versionCode *= *[0-9]+' app/app/build.gradle.kts | head -n 1 | sed -E 's/.*versionCode *= *([0-9]+).*/\1/')
+          NOW=$(date '+%Y-%m-%d %H:%M')
+          {
+            echo "STG ${VERSION_NAME}(${VERSION_CODE})"
+            echo "${RELEASE_NOTE_INPUT}"
+            echo "Distributed by ${TRIGGER_USER}"
+            echo "At ${NOW}"
+          } > release-notes.txt
+          echo "RELEASE_NOTES_FILE=$GITHUB_WORKSPACE/release-notes.txt" >> "$GITHUB_ENV"
+
       - name: Upload to Firebase App Distribution
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
@@ -62,4 +79,4 @@ jobs:
           serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           groups: ${{ inputs.tester_group }}
           file: ${{ env.APK_PATH }}
-          releaseNotes: "${{ inputs.release_notes }}"
+          releaseNotesFile: ${{ env.RELEASE_NOTES_FILE }}
