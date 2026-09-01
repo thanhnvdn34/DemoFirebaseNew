@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       release_notes:
-        description: 'Release notes'
+        description: 'Release notes for testers'
         required: false
         type: string
       tester_group:
@@ -13,6 +13,9 @@ on:
         default: 'Group1,Group2,Group-3'
         type: string
 
+permissions:
+  contents: read
+
 jobs:
   build-and-distribute:
     name: Build Debug APK & Upload to Firebase
@@ -20,14 +23,21 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: 'gradle'
+
+      - name: Verify signing keystore
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/cer/certificate.jks
+        run: |
+          chmod 600 "$KEYSTORE_PATH"
+          test -s "$KEYSTORE_PATH"
 
       - name: Compute unique build tag from timestamp
         run: |
@@ -40,19 +50,19 @@ jobs:
 
       - name: Build Debug APK
         env:
-          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
-          KS_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KS_KEY_PASS: ${{ secrets.KEY_PASSWORD }}
-          BUILD_TAG: ${{ env.BUILD_TAG }}
+          ORG_GRADLE_PROJECT_android.injected.signing.store.file: ${{ github.workspace }}/cer/certificate.jks
+          ORG_GRADLE_PROJECT_android.injected.signing.store.password: ${{ secrets.KEYSTORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_android.injected.signing.key.alias: ${{ secrets.KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_android.injected.signing.key.password: ${{ secrets.KEY_PASSWORD }}
         working-directory: app
         run: |
-          ./gradlew assembleDebug \
-            -Pandroid.injected.signing.store.file=$(pwd)/../cer/certificate.jks \
-            -Pandroid.injected.signing.store.password=$KS_PASS \
-            -Pandroid.injected.signing.key.alias=$KS_ALIAS \
-            -Pandroid.injected.signing.key.password=$KS_KEY_PASS
-          mv app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/app-debug-${BUILD_TAG}.apk
-          echo "APK_PATH=app/app/build/outputs/apk/debug/app-debug-${BUILD_TAG}.apk" >> $GITHUB_ENV
+          ./gradlew assembleDebug
+          APK_PATH="$GITHUB_WORKSPACE/app/app/build/outputs/apk/debug/app-debug.apk"
+          DISTRIBUTION_APK_PATH="$GITHUB_WORKSPACE/app/app/build/outputs/apk/debug/app-debug-${BUILD_TAG}.apk"
+          test -s "$APK_PATH"
+          mv "$APK_PATH" "$DISTRIBUTION_APK_PATH"
+          test -s "$DISTRIBUTION_APK_PATH"
+          echo "APK_PATH=$DISTRIBUTION_APK_PATH" >> "$GITHUB_ENV"
 
       - name: Prepare Firebase release notes
         env:
@@ -60,22 +70,31 @@ jobs:
           TRIGGER_USER: ${{ github.actor }}
         run: |
           export TZ=Asia/Ho_Chi_Minh
-          VERSION_NAME=$(grep -E 'versionName *= *"' app/app/build.gradle.kts | head -n 1 | sed -E 's/.*versionName *= *"([^"]+)".*/\1/')
-          VERSION_CODE=$(grep -E 'versionCode *= *[0-9]+' app/app/build.gradle.kts | head -n 1 | sed -E 's/.*versionCode *= *([0-9]+).*/\1/')
+          VERSION_NAME=$(sed -nE 's/.*versionName[[:space:]]+"([^"]+)".*/\1/p' app/app/build.gradle.kts | head -n 1)
+          VERSION_CODE=$(sed -nE 's/.*versionCode[[:space:]]+([0-9]+).*/\1/p' app/app/build.gradle.kts | head -n 1)
           NOW=$(date '+%Y-%m-%d %H:%M')
           {
-            echo "STG ${VERSION_NAME}(${VERSION_CODE})"
+            echo "${VERSION_NAME}(${VERSION_CODE})"
             echo "${RELEASE_NOTE_INPUT}"
             echo "Distributed by ${TRIGGER_USER}"
             echo "At ${NOW}"
-          } > release-notes.txt
+            } > release-notes.txt
           echo "RELEASE_NOTES_FILE=$GITHUB_WORKSPACE/release-notes.txt" >> "$GITHUB_ENV"
 
       - name: Upload to Firebase App Distribution
-        uses: wzieba/Firebase-Distribution-Github-Action@v1
-        with:
-          appId: ${{ secrets.FIREBASE_APP_ID }}
-          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          groups: ${{ inputs.tester_group }}
-          file: ${{ env.APK_PATH }}
-          releaseNotesFile: ${{ env.RELEASE_NOTES_FILE }}
+        env:
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          TESTER_GROUP: ${{ inputs.tester_group }}
+        run: |
+          SERVICE_ACCOUNT_PATH="$RUNNER_TEMP/firebase-service-account.json"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$SERVICE_ACCOUNT_PATH"
+          chmod 600 "$SERVICE_ACCOUNT_PATH"
+          trap 'rm -f "$SERVICE_ACCOUNT_PATH"' EXIT
+          test -s "$SERVICE_ACCOUNT_PATH"
+          node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$SERVICE_ACCOUNT_PATH"
+          export GOOGLE_APPLICATION_CREDENTIALS="$SERVICE_ACCOUNT_PATH"
+          npx --yes firebase-tools@15.22.3 appdistribution:distribute "$APK_PATH" \
+            --app "$FIREBASE_APP_ID" \
+            --groups "$TESTER_GROUP" \
+            --release-notes-file "$RELEASE_NOTES_FILE"
