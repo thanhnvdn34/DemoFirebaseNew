@@ -70,8 +70,8 @@ jobs:
           TRIGGER_USER: ${{ github.actor }}
         run: |
           export TZ=Asia/Ho_Chi_Minh
-          VERSION_NAME=$(sed -nE 's/.*versionName[[:space:]]+"([^"]+)".*/\1/p' app/app/build.gradle.kts | head -n 1)
-          VERSION_CODE=$(sed -nE 's/.*versionCode[[:space:]]+([0-9]+).*/\1/p' app/app/build.gradle.kts | head -n 1)
+          VERSION_NAME=$(grep -m 1 'versionName' app/app/build.gradle.kts | sed -E 's/.*versionName[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/')
+          VERSION_CODE=$(grep -m 1 'versionCode' app/app/build.gradle.kts | sed -E 's/.*versionCode[[:space:]]*=[[:space:]]*([0-9]+).*/\1/')
           NOW=$(date '+%Y-%m-%d %H:%M')
           {
             echo "${VERSION_NAME}(${VERSION_CODE})"
