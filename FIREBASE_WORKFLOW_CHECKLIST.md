@@ -41,6 +41,7 @@ Checklist:
 - [ ] Có `actions/checkout@v5` trước khi dùng git hoặc đọc file.
 - [ ] Có `actions/setup-java@v5`.
 - [ ] Java version tương thích với Gradle và Android Gradle Plugin.
+- [ ] Node.js/npm có sẵn trên runner nếu workflow dùng `npx firebase-tools`.
 
 ## 3. Gradle wrapper và working-directory
 
@@ -127,6 +128,8 @@ Checklist:
 - [ ] Đường dẫn trong shell và đường dẫn trong `with.file` không bị nhầm.
 - [ ] Nếu đổi tên APK, cập nhật cả `APK_PATH`.
 - [ ] Thêm bước kiểm tra output trước upload.
+- [ ] Với AAB, dùng task `bundleDebug` hoặc `bundleRelease`.
+- [ ] Với AAB, kiểm tra output trong `app/app/build/outputs/bundle/<variant>/`.
 
 ```yaml
 - name: Check APK output
@@ -196,17 +199,18 @@ The APK package name does not match your Firebase app package name
 
 ## 8. Firebase App Distribution
 
-Mẫu action:
+Firebase CLI là một lựa chọn thay cho GitHub Action:
 
 ```yaml
 - name: Upload to Firebase App Distribution
-  uses: wzieba/Firebase-Distribution-Github-Action@v1
-  with:
-    appId: ${{ secrets.FIREBASE_APP_ID }}
-    serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-    groups: ${{ inputs.tester_group }}
-    file: ${{ env.APK_PATH }}
-    releaseNotesFile: ${{ env.RELEASE_NOTES_FILE }}
+  run: |
+    SERVICE_ACCOUNT_PATH="$RUNNER_TEMP/firebase-service-account.json"
+    printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$SERVICE_ACCOUNT_PATH"
+    export GOOGLE_APPLICATION_CREDENTIALS="$SERVICE_ACCOUNT_PATH"
+    npx --yes firebase-tools@15.22.3 appdistribution:distribute "$DISTRIBUTION_FILE_PATH" \
+      --app "$FIREBASE_APP_ID" \
+      --groups "$TESTER_GROUP" \
+      --release-notes-file "$RELEASE_NOTES_FILE"
 ```
 
 Checklist:
@@ -221,6 +225,8 @@ Checklist:
 - [ ] Không thêm khoảng trắng thừa trong alias.
 - [ ] Nếu lỗi 404 ở bước distribute nhưng upload thành công, kiểm tra group alias trước.
 - [ ] Có thể thử `testers` bằng email để tách lỗi group khỏi lỗi upload.
+- [ ] Nếu upload AAB, Firebase App Distribution app phải được liên kết với Google Play.
+- [ ] Nếu chưa liên kết Google Play, chỉ upload APK lên Firebase và lưu AAB thành GitHub Artifact hoặc upload lên Play Console.
 
 Kiểm tra group alias:
 
@@ -252,20 +258,20 @@ Group 3
 Nên tạo file text thay vì nhúng chuỗi nhiều dòng trực tiếp vào YAML:
 
 ```bash
-export TZ=Asia/Tokyo
-VERSION_NAME=$(grep -E 'versionName *= *"' app/app/build.gradle.kts \
+export TZ=Asia/Ho_Chi_Minh
+VERSION_NAME=$(grep -m 1 'versionName' app/app/build.gradle.kts \
   | head -n 1 \
-  | sed -E 's/.*versionName *= *"([^"]+)".*/\1/')
-VERSION_CODE=$(grep -E 'versionCode *= *[0-9]+' app/app/build.gradle.kts \
+  | sed -E 's/.*versionName[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/')
+VERSION_CODE=$(grep -m 1 'versionCode' app/app/build.gradle.kts \
   | head -n 1 \
-  | sed -E 's/.*versionCode *= *([0-9]+).*/\1/')
+  | sed -E 's/.*versionCode[[:space:]]*=[[:space:]]*([0-9]+).*/\1/')
 NOW=$(date '+%Y-%m-%d %H:%M')
 
 {
-  echo "STG ${VERSION_NAME}(${VERSION_CODE})"
+  echo "${VERSION_NAME}(${VERSION_CODE})"
   echo "${RELEASE_NOTE_INPUT}"
   echo "Distributed by ${TRIGGER_USER}"
-  echo "At ${NOW} Japan time"
+  echo "At ${NOW}"
 } > release-notes.txt
 
 echo "RELEASE_NOTES_FILE=$GITHUB_WORKSPACE/release-notes.txt" >> "$GITHUB_ENV"
@@ -274,10 +280,10 @@ echo "RELEASE_NOTES_FILE=$GITHUB_WORKSPACE/release-notes.txt" >> "$GITHUB_ENV"
 Format kết quả:
 
 ```text
-STG 1.0(1)
+1.0(1)
 Nội dung release note nhập trên web
 Distributed by username
-At 2026-08-27 18:30 Japan time
+At 2026-08-27 18:30
 ```
 
 Checklist:
@@ -290,7 +296,6 @@ Checklist:
 - [ ] `github.actor` là username GitHub, không phải tên thật.
 - [ ] Dùng `inputs.trigger_name` nếu cần nhập tên thật thủ công.
 - [ ] Múi giờ trong `TZ` khớp với chữ hiển thị.
-- [ ] `Asia/Tokyo` là giờ Nhật.
 - [ ] `Asia/Ho_Chi_Minh` là giờ Việt Nam, không phải giờ Nhật.
 
 ## 10. Biến môi trường và expression
@@ -353,8 +358,21 @@ Firebase có thể nhận nhiều bản có cùng `versionCode` và `versionName
 - [ ] `versionName` chỉ là tên hiển thị.
 - [ ] `versionCode` là số định danh build cho Google Play.
 - [ ] Firebase và Google Play có quy tắc nhận diện release khác nhau.
+- [ ] `versionName` và `versionCode` được đọc đúng cú pháp Kotlin DSL: `versionName = "..."`, `versionCode = ...`.
 
-## 13. Chẩn đoán lỗi theo log
+## 13. Chọn APK hoặc AAB
+
+Checklist:
+
+- [ ] Không tick `build_bundle`: chạy `assembleDebug` và tạo APK.
+- [ ] Tick `build_bundle`: chạy `bundleDebug` và tạo AAB.
+- [ ] Dùng biến output chung, ví dụ `DISTRIBUTION_FILE_PATH`, cho file đã đổi tên.
+- [ ] AAB được upload thành GitHub Artifact bằng `actions/upload-artifact`.
+- [ ] Nếu app chưa liên kết Google Play, Firebase upload chỉ chạy cho APK.
+- [ ] AAB release dành cho Google Play nên build bằng `bundleRelease` và tăng `versionCode`.
+- [ ] Không nhầm AAB artifact với Firebase App Distribution release.
+
+## 14. Chẩn đoán lỗi theo log
 
 ### Lỗi không tìm thấy gradlew
 
@@ -420,7 +438,20 @@ Kiểm tra:
 - [ ] Service account có quyền không.
 - [ ] Thử phân phối bằng email tester để khoanh vùng.
 
-## 14. Bộ lệnh kiểm tra nhanh trước khi push
+### Lỗi AAB chưa liên kết Google Play
+
+```text
+This project is not linked to a Google Play account.
+```
+
+Kiểm tra:
+
+- [ ] Firebase Android App và Google Play app dùng cùng package name.
+- [ ] Firebase project đã được liên kết với Google Play Console.
+- [ ] Tài khoản thao tác có quyền phù hợp trên Google Play Console.
+- [ ] Nếu chưa cần Google Play, dùng APK cho Firebase và lưu AAB thành artifact.
+
+## 15. Bộ lệnh kiểm tra nhanh trước khi push
 
 ```bash
 cd /path/to/project
@@ -433,9 +464,11 @@ find . -maxdepth 3 -type f \( -name gradlew -o -name settings.gradle.kts -o -nam
 cd app
 chmod +x ./gradlew
 ./gradlew assembleDebug
+./gradlew bundleDebug
 
 # Kiểm tra APK
 find . -path '*build/outputs/apk/debug/*.apk' -type f -print
+find . -path '*build/outputs/bundle/debug/*.aab' -type f -print
 
 # Quay lại root và kiểm tra YAML
 cd ..
@@ -443,7 +476,7 @@ ruby -e "require 'yaml'; YAML.load_file('.github/workflows/firebase-distribution
 git diff --check
 ```
 
-## 15. Checklist tối thiểu cho người mới
+## 16. Checklist tối thiểu cho người mới
 
 ```text
 [ ] Đúng cấu trúc project
@@ -458,6 +491,9 @@ git diff --check
 [ ] Đúng group alias
 [ ] APK được tạo thành công
 [ ] APK path trỏ đúng file
+[ ] `build_bundle` chọn đúng APK hoặc AAB
+[ ] AAB không upload Firebase nếu app chưa liên kết Google Play
+[ ] AAB artifact có thể tải từ GitHub Actions
 [ ] Release notes nhiều dòng dùng releaseNotesFile
 [ ] Biến giữa các step dùng GITHUB_ENV
 [ ] actions/checkout@v5
