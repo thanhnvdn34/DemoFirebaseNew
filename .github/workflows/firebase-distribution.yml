@@ -102,7 +102,6 @@ jobs:
           echo "RELEASE_NOTES_FILE=$GITHUB_WORKSPACE/release-notes.txt" >> "$GITHUB_ENV"
 
       - name: Upload to Firebase App Distribution
-        if: ${{ !inputs.build_bundle }}
         env:
           FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
